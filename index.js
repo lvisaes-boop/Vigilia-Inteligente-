@@ -33,7 +33,7 @@ async function startBot() {
         setInterval(async () => {
             try {
                 const block = await polygonService.getBlockNumber();
-                const gasPrice = await polygonService.getGasPrice?.() || 'N/A';
+                const gasPrice = await polygonService.getGasPrice() || 'N/A';
                 console.log(`[${new Date().toISOString()}] 📦 Bloque: ${block} | ⛽ Gas: ${gasPrice} gwei`);
             } catch (err) {
                 console.error(`Error obteniendo datos: ${err.message}`);
