@@ -59,6 +59,14 @@ class PolygonService {
         }
     }
 
+    // Obtener el proveedor (NUEVO MÉTODO AGREGADO)
+    getProvider() {
+        if (!this.provider || !this.isConnected) {
+            throw new Error('Proveedor no inicializado. Llama a connect() primero.');
+        }
+        return this.provider;
+    }
+
     // Obtener información de la red
     async getNetworkInfo() {
         if (!this.provider || !this.isConnected) {
