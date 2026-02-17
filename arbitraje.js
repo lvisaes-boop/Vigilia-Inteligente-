@@ -52,17 +52,24 @@ class Arbitraje {
 
     // Inicializar contratos de los DEX
     async init() {
-        this.provider = polygonService.getProvider();
-        
-        for (const dex of DEXES) {
-            this.contracts[dex.name] = new ethers.Contract(
-                dex.router,
-                dex.abi,
-                this.provider
-            );
+        try {
+            // Obtener provider del servicio Polygon
+            this.provider = polygonService.getProvider();
+            
+            for (const dex of DEXES) {
+                this.contracts[dex.name] = new ethers.Contract(
+                    dex.router,
+                    dex.abi,
+                    this.provider
+                );
+            }
+            
+            console.log(`📡 Monitoreando ${DEXES.length} DEXs en Polygon`);
+            return true;
+        } catch (error) {
+            console.error(`Error inicializando arbitraje: ${error.message}`);
+            return false;
         }
-        
-        console.log(`📡 Monitoreando ${DEXES.length} DEXs en Polygon`);
     }
 
     // Obtener precio de un par en un DEX específico
@@ -84,7 +91,7 @@ class Arbitraje {
 
             return parseFloat(amountOut);
         } catch (error) {
-            console.log(`Error obteniendo precio en ${dexName}: ${error.message}`);
+            // Silencioso para no llenar logs
             return null;
         }
     }
@@ -107,90 +114,97 @@ class Arbitraje {
 
     // Buscar oportunidades de arbitraje
     async buscarOportunidades() {
-        if (!this.provider) await this.init();
+        if (!this.provider) {
+            await this.init();
+        }
 
         const oportunidades = [];
-        const gasPrice = await polygonService.getGasPrice();
-        const gasPriceNum = parseFloat(gasPrice);
-
-        // Probar cada par de tokens
-        const tokensList = Object.values(TOKENS);
         
-        for (let i = 0; i < tokensList.length; i++) {
-            for (let j = i + 1; j < tokensList.length; j++) {
-                const tokenA = tokensList[i];
-                const tokenB = tokensList[j];
-                
-                // Cantidad base: 1 token A
-                const cantidadBase = 1;
+        try {
+            const gasPrice = await polygonService.getGasPrice();
+            const gasPriceNum = parseFloat(gasPrice) || 100;
 
-                // Obtener precios en cada DEX
-                const precios = {};
-                for (const dex of DEXES) {
-                    const precio = await this.getPrice(
-                        dex.name,
-                        tokenA,
-                        tokenB,
-                        cantidadBase
-                    );
-                    if (precio) {
-                        precios[dex.name] = precio;
-                    }
-                }
+            // Probar cada par de tokens
+            const tokensList = Object.values(TOKENS);
+            
+            for (let i = 0; i < tokensList.length; i++) {
+                for (let j = i + 1; j < tokensList.length; j++) {
+                    const tokenA = tokensList[i];
+                    const tokenB = tokensList[j];
+                    
+                    // Cantidad base: 1 token A
+                    const cantidadBase = 1;
 
-                // Buscar el DEX más barato para comprar y el más caro para vender
-                if (Object.keys(precios).length >= 2) {
-                    let dexBarato = null;
-                    let dexCaro = null;
-                    let precioBarato = Infinity;
-                    let precioCaro = -Infinity;
-
-                    for (const [dexName, precio] of Object.entries(precios)) {
-                        if (precio < precioBarato) {
-                            precioBarato = precio;
-                            dexBarato = dexName;
-                        }
-                        if (precio > precioCaro) {
-                            precioCaro = precio;
-                            dexCaro = dexName;
-                        }
-                    }
-
-                    if (dexBarato !== dexCaro && precioCaro > precioBarato) {
-                        const ganancia = this.calcularGananciaNeta(
-                            precioBarato,
-                            precioCaro,
-                            cantidadBase * 1000, // Escalar a cantidad significativa
-                            gasPriceNum
+                    // Obtener precios en cada DEX
+                    const precios = {};
+                    for (const dex of DEXES) {
+                        const precio = await this.getPrice(
+                            dex.name,
+                            tokenA,
+                            tokenB,
+                            cantidadBase
                         );
+                        if (precio) {
+                            precios[dex.name] = precio;
+                        }
+                    }
 
-                        const oportunidad = {
-                            id: `OP-${Date.now()}-${i}-${j}`,
-                            timestamp: new Date().toISOString(),
-                            tokenA: tokenA.symbol,
-                            tokenB: tokenB.symbol,
-                            comprarEn: dexBarato,
-                            venderEn: dexCaro,
-                            precioCompra: precioBarato,
-                            precioVenta: precioCaro,
-                            diferencial: ((precioCaro - precioBarato) / precioBarato * 100).toFixed(2) + '%',
-                            cantidad: cantidadBase * 1000,
-                            ganancia: ganancia,
-                            gasPrice: gasPriceNum
-                        };
+                    // Buscar el DEX más barato para comprar y el más caro para vender
+                    if (Object.keys(precios).length >= 2) {
+                        let dexBarato = null;
+                        let dexCaro = null;
+                        let precioBarato = Infinity;
+                        let precioCaro = -Infinity;
 
-                        oportunidades.push(oportunidad);
+                        for (const [dexName, precio] of Object.entries(precios)) {
+                            if (precio < precioBarato) {
+                                precioBarato = precio;
+                                dexBarato = dexName;
+                            }
+                            if (precio > precioCaro) {
+                                precioCaro = precio;
+                                dexCaro = dexName;
+                            }
+                        }
 
-                        // Log si es rentable
-                        if (ganancia.esRentable) {
-                            console.log('💰 OPORTUNIDAD RENTABLE ENCONTRADA:');
-                            console.log(`   ${tokenA.symbol}/${tokenB.symbol}: Comprar en ${dexBarato} a $${precioBarato.toFixed(6)}, vender en ${dexCaro} a $${precioCaro.toFixed(6)}`);
-                            console.log(`   Ganancia neta: $${ganancia.neta.toFixed(2)}`);
-                            this.ultimaOportunidad = oportunidad;
+                        if (dexBarato !== dexCaro && precioCaro > precioBarato) {
+                            const ganancia = this.calcularGananciaNeta(
+                                precioBarato,
+                                precioCaro,
+                                cantidadBase * 1000, // Escalar a cantidad significativa
+                                gasPriceNum
+                            );
+
+                            const oportunidad = {
+                                id: `OP-${Date.now()}-${i}-${j}`,
+                                timestamp: new Date().toISOString(),
+                                tokenA: tokenA.symbol,
+                                tokenB: tokenB.symbol,
+                                comprarEn: dexBarato,
+                                venderEn: dexCaro,
+                                precioCompra: precioBarato,
+                                precioVenta: precioCaro,
+                                diferencial: ((precioCaro - precioBarato) / precioBarato * 100).toFixed(2) + '%',
+                                cantidad: cantidadBase * 1000,
+                                ganancia: ganancia,
+                                gasPrice: gasPriceNum
+                            };
+
+                            oportunidades.push(oportunidad);
+
+                            // Log si es rentable
+                            if (ganancia.esRentable) {
+                                console.log('💰 OPORTUNIDAD RENTABLE ENCONTRADA:');
+                                console.log(`   ${tokenA.symbol}/${tokenB.symbol}: Comprar en ${dexBarato} a $${precioBarato.toFixed(6)}, vender en ${dexCaro} a $${precioCaro.toFixed(6)}`);
+                                console.log(`   Ganancia neta: $${ganancia.neta.toFixed(2)}`);
+                                this.ultimaOportunidad = oportunidad;
+                            }
                         }
                     }
                 }
             }
+        } catch (error) {
+            console.error(`Error buscando oportunidades: ${error.message}`);
         }
 
         return oportunidades;
