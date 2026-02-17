@@ -1,13 +1,23 @@
 {
-  "name": "vigilia-inteligente",
+  "name": "vigilia-bot",
   "version": "1.0.0",
-  "description": "Bot de arbitraje con flash loans",
+  "description": "Bot de arbitraje con flash loans y notificaciones Telegram",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "ethers": "^5.7.2",
-    "dotenv": "^16.0.3"
-  }
+    "dotenv": "^16.0.3",
+    "axios": "^1.6.0"
+  },
+  "keywords": [
+    "arbitrage",
+    "flash-loan",
+    "polygon",
+    "aave",
+    "trading-bot"
+  ],
+  "author": "Vigilia Inteligente",
+  "license": "MIT"
 }
