@@ -26,7 +26,7 @@ async function startBot() {
         console.log(`   ⛽ Gas price: ${info.gasPrice} gwei`);
         console.log(`   🔌 RPC activo: ${info.activeRpc}`);
         
-        // Inicializar arbitraje
+        // Inicializar arbitraje (DESPUÉS de conectar)
         await arbitraje.init();
         
         // Verificar cada 30 segundos (modo normal) o 3 segundos (ultra)
