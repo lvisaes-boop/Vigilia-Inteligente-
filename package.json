@@ -1,7 +1,7 @@
 {
-  "name": "vigilia-bot",
+  "name": "vigilia-inteligente",
   "version": "1.0.0",
-  "description": "Bot de arbitraje inteligente",
+  "description": "Bot de arbitraje con flash loans",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
