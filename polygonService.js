@@ -3,9 +3,11 @@ const { ethers } = require('ethers');
 class PolygonService {
     constructor() {
         this.rpcUrls = [
-            'https://polygon-rpc.com',
-            'https://rpc.ankr.com/polygon'
-        ];
+    'https://polygon-rpc.com',
+    'https://rpc.ankr.com/polygon',
+    'https://polygon-bor-rpc.publicnode.com',
+    'https://polygon.llamarpc.com'
+];
         this.currentRpcIndex = 0;
         this.provider = null;
         this.isConnected = false;
