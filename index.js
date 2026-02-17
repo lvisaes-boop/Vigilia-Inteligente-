@@ -2,6 +2,7 @@ require('dotenv').config();
 const http = require('http');
 const polygonService = require('./polygonService');
 const config = require('./config');
+const arbitraje = require('./arbitraje');
 
 let server;
 
@@ -25,6 +26,9 @@ async function startBot() {
         console.log(`   ⛽ Gas price: ${info.gasPrice} gwei`);
         console.log(`   🔌 RPC activo: ${info.activeRpc}`);
         
+        // Inicializar arbitraje
+        await arbitraje.init();
+        
         // Verificar cada 30 segundos (modo normal) o 3 segundos (ultra)
         const intervalo = config.gas.modoUltra.activo ? 
             config.gas.modoUltra.intervalo : 
@@ -35,8 +39,19 @@ async function startBot() {
                 const block = await polygonService.getBlockNumber();
                 const gasPrice = await polygonService.getGasPrice() || 'N/A';
                 console.log(`[${new Date().toISOString()}] 📦 Bloque: ${block} | ⛽ Gas: ${gasPrice} gwei`);
+                
+                // Buscar oportunidades de arbitraje
+                const oportunidades = await arbitraje.buscarOportunidades();
+                if (oportunidades.length > 0) {
+                    const rentables = oportunidades.filter(o => o.ganancia.esRentable);
+                    if (rentables.length > 0) {
+                        console.log(`💰 Se encontraron ${rentables.length} oportunidades rentables`);
+                        // Ejecutar la mejor
+                        await arbitraje.ejecutarOportunidad(rentables[0]);
+                    }
+                }
             } catch (err) {
-                console.error(`Error obteniendo datos: ${err.message}`);
+                console.error(`Error en escaneo: ${err.message}`);
             }
         }, intervalo);
 
@@ -50,7 +65,6 @@ async function startBot() {
     // Crear servidor HTTP
     if (!server) {
         server = http.createServer(async (req, res) => {
-            // Configurar CORS para que funcione desde cualquier lugar
             res.setHeader('Access-Control-Allow-Origin', '*');
             
             if (req.url === '/status') {
@@ -89,6 +103,11 @@ async function startBot() {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(config, null, 2));
             }
+            else if (req.url === '/arbitraje') {
+                const stats = arbitraje.getEstadisticas();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(stats, null, 2));
+            }
             else {
                 res.writeHead(200, { 'Content-Type': 'text/html' });
                 res.end(`
@@ -118,6 +137,7 @@ async function startBot() {
                             <p>🔹 <span class="endpoint">/ultra/on</span> - Activar modo ultra (escaneo cada 3s)</p>
                             <p>🔹 <span class="endpoint">/ultra/off</span> - Volver a modo normal (30s)</p>
                             <p>🔹 <span class="endpoint">/config</span> - Ver configuración actual</p>
+                            <p>🔹 <span class="endpoint">/arbitraje</span> - Ver estadísticas de arbitraje</p>
                         </div>
                         <div class="info">
                             <p>⛓️ <strong>Conectado a:</strong> Polygon Mainnet (Chain ID: 137)</p>
@@ -137,6 +157,7 @@ async function startBot() {
             console.log(`   ⚡ /ultra/on - Activar modo ultra`);
             console.log(`   🔧 /ultra/off - Modo normal`);
             console.log(`   ⚙️ /config - Ver configuración`);
+            console.log(`   📈 /arbitraje - Estadísticas de arbitraje`);
         });
 
         server.on('error', (err) => {
@@ -150,10 +171,8 @@ async function startBot() {
     }
 }
 
-// Iniciar el bot
 startBot();
 
-// Manejar cierre graceful
 process.on('SIGTERM', () => {
     console.log('🛑 Recibida señal SIGTERM, cerrando gracefulmente...');
     if (server) {
